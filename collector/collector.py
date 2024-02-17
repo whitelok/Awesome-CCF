@@ -197,11 +197,6 @@ def fetch_publish_content_data(page: playwright.sync_api._generated.Page,
                 if full_name == "ACM Transactions on Computer Systems":
                     ipdb.set_trace()
 
-    # content = None
-    # publish_collector_module_name = full_name.lower().replace(' ', '/')
-    # if full_name == "ACM Transactions on Computer Systems":
-    #     ipdb.set_trace()
-
 
 def fetch_ccf_data(args: argparse.Namespace,
                    playwright: playwright.sync_api._generated.Playwright,
