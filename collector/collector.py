@@ -4,6 +4,7 @@ import urllib
 import argparse
 import logging
 import typing
+import playwright
 
 from playwright.async_api import async_playwright
 from playwright.sync_api import sync_playwright
@@ -35,7 +36,7 @@ def check_proxy(args: argparse.Namespace) -> bool:
     return True
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('--proxy_url',
                         type=str,
@@ -50,11 +51,20 @@ def parse_args():
         default="INFO",
         choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         help="log level")
+    parser.add_argument('--default_timeout',
+                        type=int,
+                        default=60000,
+                        help="data fetch timeout")
+    parser.add_argument(
+        '--main_page_url',
+        type=str,
+        default="https://www.ccf.org.cn/Academic_Evaluation/By_category/",
+        help="default data source main page url")
     args = parser.parse_args()
     return args
 
 
-def prepare_proxy_settings(args: argparse.Namespace):
+def prepare_proxy_settings(args: argparse.Namespace) -> dict:
     proxy_settings = ProxySettings(server=f'http://{args.proxy_url}')
     cur_env = os.environ.copy()
     cur_env["https_proxy"] = f"http://{args.proxy_url}"
@@ -63,9 +73,62 @@ def prepare_proxy_settings(args: argparse.Namespace):
     return proxy_settings
 
 
+def get_domain_url(url):
+    return '{uri.scheme}://{uri.netloc}/'.format(
+        uri=urllib.parse.urlparse(url))
+
+
+def get_category_list(page: playwright.sync_api._generated.Page) -> dict:
+    category_dict = {}
+    # goto the category bar
+    category_bar_locator = page.locator(
+        "body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-2 > div > ul:nth-child(2)"
+    )
+    domain_url = get_domain_url(page.main_frame.url)
+    # from [1:-1] to skip the introduction and skip contact us
+    for category_bar_li in category_bar_locator.get_by_role(
+            'listitem').all()[1:-1]:
+        category_bar_hyper_link = category_bar_li.first.get_by_role(
+            "link").get_attribute('href')
+        category_bar_content_text = category_bar_li.first.get_by_role(
+            "link").text_content()
+        category_bar_key = category_bar_hyper_link.strip('/').split('/')[-1]
+        category_dict[category_bar_key] = {
+            'desc': category_bar_content_text,
+            'link': f"{domain_url}{category_bar_hyper_link}"
+        }
+    return category_dict
+
+
+def fetch_category_data(args: argparse.Namespace,
+                        page: playwright.sync_api._generated.Page,
+                        category_dict: dict):
+    for category_key in category_dict:
+        page.goto(
+            category_dict[category_key],
+            timeout=args.default_timeout,
+        )
+        ipdb.set_trace()
+        break
+
+
 def fetch_ccf_data(args: argparse.Namespace,
+                   playwright: playwright.sync_api._generated.Playwright,
                    proxy_settings: typing.Optional[dict] = None):
-    pass
+    browser = playwright.chromium.launch(headless=False, proxy=proxy_settings)
+    page = browser.new_page()
+    # go to main page at
+    logging.info("Go to main page")
+    page.goto(
+        args.main_page_url,
+        timeout=args.default_timeout,
+    )
+    logging.info("Get to main page")
+    category_dict = get_category_list(page)
+    # go to each category and fetch content data
+    fetch_category_data(args, page, category_dict)
+    ipdb.set_trace()
+    browser.close()
 
 
 def main():
@@ -80,20 +143,9 @@ def main():
     if check_proxy(args):
         proxy_settings = prepare_proxy_settings(args)
 
-    print(type(proxy_settings))
-
-    # # launch browser
-    # with sync_playwright() as p:
-    #     for browser_type in [p.chromium]:
-    #         browser = browser_type.launch_persistent_context(
-    #             headless=False, proxy=proxy_settings, no_viewport=True)
-    #         page = browser.pages[0]
-    #         page.goto(
-    #             'https://www.binance.com/zh-CN/my/dashboard?callback=',
-    #             timeout=22896000,
-    #         )
-    #         ipdb.set_trace()
-    #         browser.close()
+    # fetch ccf data
+    with sync_playwright() as playwright:
+        fetch_ccf_data(args, playwright, proxy_settings)
 
 
 if __name__ == "__main__":
