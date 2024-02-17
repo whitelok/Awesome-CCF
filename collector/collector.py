@@ -5,6 +5,7 @@ import argparse
 import logging
 import typing
 import playwright
+import importlib
 
 from playwright.sync_api import sync_playwright
 from playwright._impl._api_structures import ProxySettings
@@ -184,9 +185,11 @@ def fetch_category_data(args: argparse.Namespace,
         fetch_journals(page, category_content)
         # fetch conferences
         fetch_conferences(page, category_content)
+        break
 
 
-def fetch_publish_content_data(page: playwright.sync_api._generated.Page,
+def fetch_publish_content_data(args: argparse.Namespace,
+                               page: playwright.sync_api._generated.Page,
                                category_data: dict):
     for category_key in category_data:
         category = category_data[category_key]
@@ -194,8 +197,20 @@ def fetch_publish_content_data(page: playwright.sync_api._generated.Page,
         for _, journals_grades_content in journals_grades.items():
             for publish_meta in journals_grades_content:
                 full_name = publish_meta.get("full_name", None)
-                if full_name == "ACM Transactions on Computer Systems":
-                    ipdb.set_trace()
+                module_name = "publish_collector.{}".format(
+                    full_name.replace(" ", "_").lower())
+                ip_module = None
+                try:
+                    ip_module = importlib.import_module('.', module_name)
+                    ip_module_func = getattr(ip_module, "fetch_content")
+                except ModuleNotFoundError as module_not_found_err:
+                    url = publish_meta.get("url", None)
+                    logging.error(
+                        f"{full_name} can not find its collector {module_name} in {url}"
+                    )
+                    continue
+                logging.info(f"fetch {full_name} content")
+                ip_module_func(args, page, publish_meta)
 
 
 def fetch_ccf_data(args: argparse.Namespace,
@@ -215,13 +230,13 @@ def fetch_ccf_data(args: argparse.Namespace,
     # go to each category and fetch content data
     fetch_category_data(args, page, category_data)
     # fetch publish content data
-    fetch_publish_content_data(page, category_data)
+    fetch_publish_content_data(args, page, category_data)
 
-    # import json
-    # with open("local.json", "w") as a:
-    #     json.dump(category_data, a, indent=1)
+    import json
+    with open("local.json", "w") as a:
+        json.dump(category_data, a, indent=1)
 
-    ipdb.set_trace()
+    # ipdb.set_trace()
     browser.close()
 
 
