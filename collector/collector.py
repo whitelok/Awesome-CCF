@@ -6,7 +6,6 @@ import logging
 import typing
 import playwright
 
-from playwright.async_api import async_playwright
 from playwright.sync_api import sync_playwright
 from playwright._impl._api_structures import ProxySettings
 
@@ -121,7 +120,6 @@ def fetch_sub_grade_content(
             sname = full_name
         publisher = item.locator("div").nth(3).text_content()
         url = item.locator("div").nth(4).text_content()
-        content = None
         grade_content_data.append({
             'sname': sname,
             'full_name': full_name,
@@ -187,6 +185,15 @@ def fetch_category_data(args: argparse.Namespace,
         # fetch conferences
         fetch_conferences(page, category_content)
 
+def fetch_publish_content_data(page: playwright.sync_api._generated.Page,
+                        category_data: dict):
+    for category in category_data:
+        pass
+    
+    # content = None
+    # publish_collector_module_name = full_name.lower().replace(' ', '/')
+    # if full_name == "ACM Transactions on Computer Systems":
+    #     ipdb.set_trace()
 
 def fetch_ccf_data(args: argparse.Namespace,
                    playwright: playwright.sync_api._generated.Playwright,
@@ -204,6 +211,8 @@ def fetch_ccf_data(args: argparse.Namespace,
     category_data = get_category_list(page)
     # go to each category and fetch content data
     fetch_category_data(args, page, category_data)
+    # fetch publish content data
+    # fetch_publish_content_data(page, category_data)
     ipdb.set_trace()
     browser.close()
 
