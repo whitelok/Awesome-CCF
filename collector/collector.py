@@ -121,6 +121,7 @@ def fetch_sub_grade_content(
             sname = full_name
         publisher = item.locator("div").nth(3).text_content()
         url = item.locator("div").nth(4).text_content()
+        content = None
         grade_content_data.append({
             'sname': sname,
             'full_name': full_name,
