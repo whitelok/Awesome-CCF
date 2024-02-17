@@ -117,20 +117,21 @@ def fetch_sub_grade_content(
     for item in content_locator.get_by_role('listitem').all()[1:]:
         sname = item.locator(".sname").text_content()
         full_name = item.locator("div").nth(2).text_content()
+        if sname == '\u00a0':
+            sname = full_name
         publisher = item.locator("div").nth(3).text_content()
         url = item.locator("div").nth(4).text_content()
         grade_content_data.append({
             'sname': sname,
             'full_name': full_name,
             'publisher': publisher,
-            'url': url
+            'url': url,
         })
 
 
 def fetch_journals(page: playwright.sync_api._generated.Page,
-                   category_dict: dict):
-    journals_data = category_dict['journals']
-
+                   category_content: dict) -> None:
+    journals_data = category_content['journals']
     # fetch class A
     class_a_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(4)'
@@ -140,33 +141,37 @@ def fetch_journals(page: playwright.sync_api._generated.Page,
     class_b_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(6)'
     )
-    fetch_sub_grade_content(class_a_content, journals_data['b'])
+    fetch_sub_grade_content(class_b_content, journals_data['b'])
     # fetch class C
     class_c_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(8)'
     )
-    fetch_sub_grade_content(class_a_content, journals_data['c'])
+    fetch_sub_grade_content(class_c_content, journals_data['c'])
 
 
 def fetch_conferences(page: playwright.sync_api._generated.Page,
-                      category_dict: dict):
+                      category_content: dict) -> None:
+    conferences_data = category_content['conferences']
     # fetch class A
     class_a_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(12)'
     )
+    fetch_sub_grade_content(class_a_content, conferences_data['a'])
     # fetch class B
     class_b_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(14)'
     )
+    fetch_sub_grade_content(class_b_content, conferences_data['b'])
     # fetch class C
     class_c_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(16)'
     )
+    fetch_sub_grade_content(class_c_content, conferences_data['c'])
 
 
 def fetch_category_data(args: argparse.Namespace,
                         page: playwright.sync_api._generated.Page,
-                        category_dict: dict):
+                        category_dict: dict) -> None:
     for category_key in category_dict:
         category_content = category_dict[category_key]
         category_desc = category_content['desc']
@@ -178,11 +183,8 @@ def fetch_category_data(args: argparse.Namespace,
         )
         # fetch journals
         fetch_journals(page, category_content)
-        ipdb.set_trace()
         # fetch conferences
-        # fetch_conferences(page, category_content)
-        # ipdb.set_trace()
-        break
+        fetch_conferences(page, category_content)
 
 
 def fetch_ccf_data(args: argparse.Namespace,
@@ -197,9 +199,10 @@ def fetch_ccf_data(args: argparse.Namespace,
         timeout=args.default_timeout,
     )
     logging.info("Get to main page")
-    category_dict = get_category_list(page)
+    # category_data is a dict
+    category_data = get_category_list(page)
     # go to each category and fetch content data
-    fetch_category_data(args, page, category_dict)
+    fetch_category_data(args, page, category_data)
     ipdb.set_trace()
     browser.close()
 
