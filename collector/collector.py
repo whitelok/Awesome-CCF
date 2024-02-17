@@ -36,7 +36,7 @@ def parse_args():
     return args
 
 
-def prepare_proxy_settings():
+def prepare_proxy_settings(args:argparse.Namespace):
     proxy_settings = ProxySettings(server='http://127.0.0.1:7890')
 
     cur_env = os.environ.copy()
@@ -48,11 +48,11 @@ def prepare_proxy_settings():
 def main():
     # get args
     args = parse_args()
-    print(args)
+    print(type(args))
     return
 
     # prepare proxy
-    proxy_settings = prepare_proxy_settings()
+    proxy_settings = prepare_proxy_settings(args)
 
     # check proxy
 
