@@ -1,5 +1,5 @@
 import os
-import ipdb
+import tqdm
 import urllib
 import argparse
 import logging
@@ -132,46 +132,57 @@ def fetch_sub_grade_content(
 def fetch_journals(page: playwright.sync_api._generated.Page,
                    category_content: dict) -> None:
     journals_data = category_content['journals']
+    total_academic_number = 0
     # fetch class A
     class_a_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(4)'
     )
     fetch_sub_grade_content(class_a_content, journals_data['a'])
+    total_academic_number += len(journals_data['a'])
     # fetch class B
     class_b_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(6)'
     )
     fetch_sub_grade_content(class_b_content, journals_data['b'])
+    total_academic_number += len(journals_data['b'])
     # fetch class C
     class_c_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(8)'
     )
     fetch_sub_grade_content(class_c_content, journals_data['c'])
+    total_academic_number += len(journals_data['c'])
+    return total_academic_number
 
 
 def fetch_conferences(page: playwright.sync_api._generated.Page,
                       category_content: dict) -> None:
     conferences_data = category_content['conferences']
+    total_academic_number = 0
     # fetch class A
     class_a_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(12)'
     )
     fetch_sub_grade_content(class_a_content, conferences_data['a'])
+    total_academic_number += len(conferences_data['a'])
     # fetch class B
     class_b_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(14)'
     )
     fetch_sub_grade_content(class_b_content, conferences_data['b'])
+    total_academic_number += len(conferences_data['b'])
     # fetch class C
     class_c_content = page.locator(
         'body > div.main.m-b-md > div.container > div.row-box > div > div.col-md-10 > div > div > ul:nth-child(16)'
     )
     fetch_sub_grade_content(class_c_content, conferences_data['c'])
+    total_academic_number += len(conferences_data['c'])
+    return total_academic_number
 
 
 def fetch_category_data(args: argparse.Namespace,
                         page: playwright.sync_api._generated.Page,
                         category_dict: dict) -> None:
+    total_academic_number = 0
     for category_key in category_dict:
         category_content = category_dict[category_key]
         category_desc = category_content['desc']
@@ -182,35 +193,38 @@ def fetch_category_data(args: argparse.Namespace,
             timeout=args.default_timeout,
         )
         # fetch journals
-        fetch_journals(page, category_content)
+        total_academic_number += fetch_journals(page, category_content)
         # fetch conferences
-        fetch_conferences(page, category_content)
-        break
+        total_academic_number += fetch_conferences(page, category_content)
+        return total_academic_number
 
 
 def fetch_publish_content_data(args: argparse.Namespace,
                                page: playwright.sync_api._generated.Page,
-                               category_data: dict):
+                               category_data: dict, pbar: tqdm.std.tqdm):
     for category_key in category_data:
         category = category_data[category_key]
-        journals_grades = category['journals']
-        for _, journals_grades_content in journals_grades.items():
-            for publish_meta in journals_grades_content:
-                full_name = publish_meta.get("full_name", None)
-                module_name = "publish_collector.{}".format(
-                    full_name.replace(" ", "_").lower())
-                ip_module = None
-                try:
-                    ip_module = importlib.import_module('.', module_name)
-                    ip_module_func = getattr(ip_module, "fetch_content")
-                except ModuleNotFoundError as module_not_found_err:
-                    url = publish_meta.get("url", None)
-                    logging.error(
-                        f"{full_name} can not find its collector {module_name} in {url}"
-                    )
-                    continue
-                logging.info(f"fetch {full_name} content")
-                ip_module_func(args, page, publish_meta)
+        for academic_type in ["journals", "conferences"]:
+            academic_grades = category[academic_type]
+            for _, academic_grades_content in academic_grades.items():
+                for publish_meta in academic_grades_content:
+                    if "http://dblp" in publish_meta.get("url", None):
+                        full_name = publish_meta.get("full_name", None)
+                        module_name = f"publish_collector.dblp_collector"
+                        ip_module = None
+                        try:
+                            ip_module = importlib.import_module('.', module_name)
+                            ip_module_func = getattr(ip_module, "fetch_content")
+                        except ModuleNotFoundError as module_not_found_err:
+                            url = publish_meta.get("url", None)
+                            raise Exception(
+                                f"{full_name} can not find its collector {module_name} in {url}"
+                            )
+                        logging.info(f"fetch {full_name} content")
+                        ip_module_func(args, page, publish_meta)
+                    else:
+                        raise Exception(f"not support: {str(publish_meta)}")
+                    pbar.update(1)
 
 
 def fetch_ccf_data(args: argparse.Namespace,
@@ -228,15 +242,15 @@ def fetch_ccf_data(args: argparse.Namespace,
     # category_data is a dict
     category_data = get_category_list(page)
     # go to each category and fetch content data
-    fetch_category_data(args, page, category_data)
+    total_academic_number = fetch_category_data(args, page, category_data)
+    category_pbar = tqdm.tqdm(total=total_academic_number)
     # fetch publish content data
-    fetch_publish_content_data(args, page, category_data)
+    fetch_publish_content_data(args, page, category_data, category_pbar)
+    category_pbar.close()
 
     import json
     with open("local.json", "w") as a:
         json.dump(category_data, a, indent=1)
-
-    # ipdb.set_trace()
     browser.close()
 
 
